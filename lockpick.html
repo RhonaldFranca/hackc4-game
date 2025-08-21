@@ -1,0 +1,212 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Joguinho Hacker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
+  body {
+    font-family: 'Roboto Mono', monospace;
+  }
+  .arrow-box {
+    width: 3rem;
+    height: 3rem;
+    border-width: 2px;
+    border-color: white;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    user-select: none;
+    padding: 1rem;
+  }
+  .arrow-icon {
+    font-size: 2.5rem;
+    color: white;
+  }
+</style>
+</head>
+<body class="bg-[#121212] flex items-center justify-center min-h-screen p-4">
+  <div class="flex flex-col items-center space-y-8 max-w-lg w-full">
+    <div id="arrowsContainer" class="flex space-x-6 flex-wrap justify-center"></div>
+    <div class="w-full max-w-md h-3 border-2 border-green-500 relative rounded-sm overflow-hidden">
+      <div id="progressBar" class="absolute top-0 left-0 h-3 bg-lime-500 rounded-sm" style="width: 0%; clip-path: polygon(0 0, 100% 0, 90% 100%, 0% 100%)"></div>
+    </div>
+    <p id="statusText" class="text-white text-lg tracking-widest select-none">H A C K E A N D O . . .</p>
+    <p id="timerText" class="text-white text-sm tracking-widest select-none">Tempo: 8s</p>
+  </div>
+
+<script>
+  const arrowsContainer = document.getElementById('arrowsContainer');
+  const progressBar = document.getElementById('progressBar');
+  const statusText = document.getElementById('statusText');
+  const timerText = document.getElementById('timerText');
+
+  
+  const arrowTypes = [
+    { dir: 'right', icon: 'fa-arrow-right', key: 'ArrowRight' },
+    { dir: 'up', icon: 'fa-arrow-up', key: 'ArrowUp' },
+    { dir: 'down', icon: 'fa-arrow-down', key: 'ArrowDown' },
+    { dir: 'left', icon: 'fa-arrow-left', key: 'ArrowLeft' }
+  ];
+
+  let sequence = [];
+  let userIndex = 0;
+  let timeLimit = 3000; // 3s
+  let timerId = null;
+  let progressIntervalId = null;
+  let startTime = null;
+  let sequenceLength = 6;
+
+  // gerar a sequancia aleatoria 
+  function generateSequence(n) {
+    const seq = [];
+    for (let i = 0; i < n; i++) {
+      const randIndex = Math.floor(Math.random() * arrowTypes.length);
+      seq.push(arrowTypes[randIndex]);
+    }
+    return seq;
+  }
+
+  //
+  function renderSequence(states = []) {
+    arrowsContainer.innerHTML = '';
+    for (let i = 0; i < sequence.length; i++) {
+      const arrow = sequence[i];
+      const state = states[i] || 'neutral';
+
+      let bgColor = 'bg-transparent';
+      let borderColor = 'border-white';
+      if (state === 'correct') {
+        bgColor = 'bg-green-700';
+        borderColor = 'border-white';
+      } else if (state === 'wrong') {
+        bgColor = 'bg-red-700';
+        borderColor = 'border-white';
+      } else if (state === 'neutral') {
+        bgColor = 'bg-transparent';
+        borderColor = 'border-white';
+      }
+
+      // bg
+      if (state === 'neutral') {
+        bgColor = 'bg-[#121212]';
+      }
+
+      const div = document.createElement('div');
+      div.className = `arrow-box ${bgColor} ${borderColor}`;
+      div.innerHTML = `<i class="fas ${arrow.icon} arrow-icon"></i>`;
+      arrowsContainer.appendChild(div);
+    }
+  }
+
+  // Reseta o jogo
+  function startGame() {
+    sequence = generateSequence(sequenceLength);
+    userIndex = 0;
+    renderSequence();
+    statusText.textContent = 'H A C K E A N D O . . .';
+    timerText.textContent = `Tempo: ${timeLimit / 1000}s`;
+    startTime = Date.now();
+    progressBar.style.width = '0%';
+    progressBar.style.clipPath = 'polygon(0 0, 100% 0, 90% 100%, 0% 100%)';
+
+    if (timerId) clearTimeout(timerId);
+    if (progressIntervalId) clearInterval(progressIntervalId);
+
+    timerId = setTimeout(() => {
+      failGame();
+    }, timeLimit);
+
+    progressIntervalId = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      let progressPercent = (elapsed / timeLimit) * 100;
+      if (progressPercent > 100) progressPercent = 100;
+      // Adjust clip-path polygon to create the angled effect on right side
+      // The polygon points: (0 0, progress% 0, (progress%-10%) 100%, 0 100%)
+      // Clamp second point to max 100%, third point to max 90%
+      const clipRightTop = progressPercent > 100 ? 100 : progressPercent;
+      const clipRightBottom = progressPercent - 10 > 90 ? 90 : progressPercent - 10;
+      progressBar.style.width = `${progressPercent}%`;
+      progressBar.style.clipPath = `polygon(0 0, ${clipRightTop}% 0, ${clipRightBottom}% 100%, 0% 100%)`;
+    }, 20);
+  }
+
+  
+  function handleKeyPress(e) {
+    if (!sequence.length) return; // no game running
+
+    const expectedKey = sequence[userIndex].key;
+    if (e.key === expectedKey) {
+      // Correct key
+      userIndex++;
+      updateArrowsState(userIndex, true);
+      if (userIndex === sequence.length) {
+        // Completed sequence successfully
+        clearTimeout(timerId);
+        clearInterval(progressIntervalId);
+        statusText.textContent = 'ACERTOU!';
+        // Mark all arrows green
+        renderSequence(Array(sequence.length).fill('correct'));
+        // Increase sequence length for next round
+        sequenceLength++;
+        setTimeout(() => {
+          startGame();
+        }, 1500);
+      }
+    } else if (
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown'
+    ) {
+      
+      failGame();
+    }
+  }
+
+  // Update arrows states for correct or wrong up to current userIndex
+  function updateArrowsState(correctCount, isCorrect) {
+    const states = [];
+    for (let i = 0; i < sequence.length; i++) {
+      if (i < correctCount) {
+        states.push('correct');
+      } else {
+        states.push('neutral');
+      }
+    }
+    renderSequence(states);
+  }
+
+  // Fail game: mark wrong arrow red, reset sequence length, restart game
+  function failGame() {
+    clearTimeout(timerId);
+    clearInterval(progressIntervalId);
+    statusText.textContent = 'ERROU! REINICIANDO...';
+    timerText.textContent = 'Tempo: 0s';
+
+    // Mark all arrows red
+    renderSequence(Array(sequence.length).fill('wrong'));
+
+    // Reset sequence length to 6
+    sequenceLength = 6;
+
+    setTimeout(() => {
+      startGame();
+    }, 1500);
+  }
+
+  // Start first game
+  startGame();
+
+  // Listen for arrow key presses
+  window.addEventListener('keydown', handleKeyPress);
+</script>
+</body>
+</html>
