@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Hack do Círculo</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    canvas {
+      background: #111;
+      display: block;
+    }
+    #msg {
+      position: absolute;
+      top: 20px;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      width: 100%;
+    }
+    #progress-container {
+      position: absolute;
+      bottom: 160px;
+      width: 60%;
+      height: 20px;
+      background: #222;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #00c6ff, #0072ff);
+      transition: width 0.1s linear;
+      border-radius: 10px;
+    }
+    #timer {
+      position: absolute;
+      bottom: 180px;
+      font-size: 18px;
+      text-align: center;
+      width: 100%;
+      color: #00c6ff;
+    }
+    #info {
+      position: absolute;
+      bottom: 20px;
+      color: #777;
+      font-size: 14px;
+      text-align: center;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="msg"></div>
+  <div id="timer">10.0s</div>
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+  <div id="info">Pressione ESPAÇO para trocar de lado | Mantenha pressionado para hackear</div>
+  <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const msg = document.getElementById("msg");
+    const timerDisplay = document.getElementById("timer");
+    const progressBar = document.getElementById("progress-bar");
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const radius = 120;
+    const ballRadius = 8;
+    const hackDuration = 10;
+    let angle = 0;
+    let inside = true;
+    let gameOver = false;
+    let hacking = false;
+    let hackStartTime = 0;
+    let hackProgress = 0;
+    let remainingTime = hackDuration;
+    let spacePressed = false;
+    let spacePressTime = 0;
+
+    // lv
+    let level = 1;
+    let numTravas = 2; 
+    function initTravas() {
+      travas = [];
+      for (let i = 0; i < numTravas; i++) {
+        travas.push({
+          angle: Math.random() * Math.PI * 2,
+          speed: (Math.random() * 0.02 - 0.01),
+          inside: Math.random() > 0.5
+        });
+      }
+    }
+
+    function resetGame() {
+      // Ajusta número de travas baseado no nível
+      numTravas = 2 + Math.floor(level * 1.5);
+      
+      gameOver = false;
+      hacking = false;
+      hackProgress = 0;
+      remainingTime = hackDuration;
+      progressBar.style.width = '0%';
+      msg.textContent = '';
+      angle = 0;
+      
+      initTravas();
+      updateTimerDisplay();
+    }
+
+    function nextLevel() {
+      level++;
+      resetGame();
+    }
+
+    function updateTimerDisplay() {
+      timerDisplay.textContent = remainingTime.toFixed(1) + 's';
+    }
+
+    function drawCircle() {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "#444";
+      ctx.shadowBlur = 5;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+    }
+
+    function drawBall() {
+      const r = inside ? radius - 15 : radius + 15;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+
+      ctx.beginPath();
+      ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+      ctx.fillStyle = hacking ? "#00c6ff" : "white";
+      ctx.shadowBlur = 5;
+      ctx.fill();
+      ctx.closePath();
+
+      return {x, y};
+    }
+
+    function drawTravas() {
+      travas.forEach(t => {
+        const innerRadius = t.inside ? radius - 20 : radius - 2;
+        const outerRadius = t.inside ? radius - 2 : radius + 20;
+        
+        ctx.beginPath();
+        ctx.moveTo(
+          cx + innerRadius * Math.cos(t.angle),
+          cy + innerRadius * Math.sin(t.angle)
+        );
+        ctx.lineTo(
+          cx + outerRadius * Math.cos(t.angle),
+          cy + outerRadius * Math.sin(t.angle)
+        );
+        ctx.strokeStyle = t.inside ? "#00ffaa" : "#00ffaa";
+        ctx.shadowBlur = 5;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.closePath();
+      });
+    }
+
+    function checkCollision(ball) {
+      for (let t of travas) {
+        const refRadius = t.inside ? radius - 10 : radius + 10;
+        const tx = cx + refRadius * Math.cos(t.angle);
+        const ty = cy + refRadius * Math.sin(t.angle);
+        
+        const dx = ball.x - tx;
+        const dy = ball.y - ty;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if ((inside === t.inside) && distance < ballRadius + 10) {
+          gameOver = true;
+          hacking = false;
+          msg.textContent = "HACK FALHOU! Pressione espaço para tentar novamente";
+          progressBar.style.width = '0%';
+        }
+      }
+    }
+
+    function updateHackProgress(timestamp) {
+      const elapsed = (timestamp - hackStartTime) / 1000;
+      hackProgress = elapsed / hackDuration;
+      remainingTime = hackDuration - elapsed;
+      progressBar.style.width = `${hackProgress * 100}%`;
+      updateTimerDisplay();
+
+      if (hackProgress >= 1) {
+        gameOver = true;
+        hacking = false;
+        msg.textContent = "HACK CONCLUÍDO! Pressione espaço para o próximo nível";
+      }
+    }
+
+    function update(timestamp) {
+      if (gameOver) {
+        requestAnimationFrame(update);
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawCircle();
+      
+      // Atualiza travas
+      travas.forEach(t => {
+        t.angle += t.speed;
+      });
+      drawTravas();
+
+      angle += 0.03;
+      const ball = drawBall();
+      
+      checkCollision(ball);
+      
+      if (hacking) {
+        updateHackProgress(timestamp);
+      } else if (spacePressed && timestamp - spacePressTime > 1) {
+        hacking = true;
+        hackStartTime = timestamp;
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && !spacePressed) {
+        spacePressed = true;
+        spacePressTime = performance.now();
+        
+        if (gameOver) {
+          if (hackProgress >= 1) {
+            nextLevel();
+          } else {
+            resetGame();
+          }
+        } else {
+          inside = !inside;
+        }
+      }
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        spacePressed = false;
+      }
+    });
+
+    
+    function init() {
+      numTravas = 2; // Garante 2 travas no início
+      resetGame();
+      update();
+    }
+
+    init();
+  </script>
+</body>
+</html>
